@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Facturas AC · Pagos</title>
+  <meta name="description" content="Control simple y claro de pagos de facturas (Alek & Cata). Histórico, estado del mes y estadísticas." />
+  <meta name="color-scheme" content="light" />
+  <link rel="stylesheet" href="./styles.css">
+</head>
+
+<body>
+  <!-- Header -->
+  <header class="wrap">
+    <div class="head">
+      <div class="brand">
+        <div class="brandMark" aria-hidden="true">AC</div>
+        <div class="brandText">
+          <h1>Facturas AC</h1>
+          <p class="sub">Control de pagos · Alek & Cata</p>
+        </div>
+      </div>
+
+      <div class="head-actions">
+        <button id="btnRefresh" class="btn ghost" type="button" title="Actualizar lista">
+          ↻ Actualizar
+        </button>
+
+        <button id="btnStats" class="btn ghost" type="button" aria-haspopup="dialog" aria-controls="statsModal">
+          📊 Estadísticas
+        </button>
+
+        <button id="btnExport" class="btn ghost" type="button" title="Exportar (próximamente)">
+          ⤓ Exportar
+        </button>
+
+        <button id="btnImport" class="btn ghost" type="button" title="Importar (próximamente)">
+          ⤒ Importar
+        </button>
+      </div>
+    </div>
+
+    <!-- Mensajes tipo toast -->
+    <div id="mensaje" aria-live="polite" class="hide"></div>
+
+    <!-- Mini dashboard / KPIs -->
+    <section class="kpi" aria-label="Resumen del mes">
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="k">Total este mes</div>
+          <div id="kpiTotalMes" class="v">—</div>
+          <div id="kpiDeltaMes" class="h muted">vs. mes anterior: —</div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="k">Pagadas este mes</div>
+          <div id="kpiPagadas" class="v">—</div>
+          <div class="h muted">de <span id="kpiTotalFacturas">—</span> facturas</div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="k">Pendientes este mes</div>
+          <div id="kpiPendientes" class="v">—</div>
+          <div class="h muted">valor pendiente: <span id="kpiValorPendiente">—</span></div>
+        </div>
+
+        <div class="kpi-card">
+          <div class="k">Método top</div>
+          <div id="kpiMetodoTop" class="v">—</div>
+          <div class="h muted">por total pagado</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Filtros -->
+    <section class="filters" aria-label="Filtros de facturas">
+      <div class="filters-row">
+        <label class="field">
+          <span class="label">Buscar</span>
+          <input id="q" type="search" placeholder="Factura o referencia…" autocomplete="off" />
+        </label>
+
+        <label class="field">
+          <span class="label">Estado</span>
+          <select id="fEstado">
+            <option value="all">Todas</option>
+            <option value="pagado">Pagadas (este mes)</option>
+            <option value="pendiente">Pendientes (este mes)</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span class="label">Método</span>
+          <select id="fMetodo">
+            <option value="all">Todos</option>
+            <!-- app.js puede llenar opciones dinámicas -->
+          </select>
+        </label>
+
+        <div class="filters-actions">
+          <button id="btnClearFilters" class="btn ghost" type="button" title="Limpiar filtros">
+            ✕ Limpiar
+          </button>
+
+          <button id="btnQuickPay" class="btn" type="button" title="Registro rápido (próximamente)">
+            ✅ Nuevo pago
+          </button>
+        </div>
+      </div>
+
+      <p class="muted hint">
+        Tip: edita <strong>Valor</strong> y <strong>Método</strong> directo en la tabla. Enter guarda, Esc revierte.
+      </p>
+    </section>
+  </header>
+
+  <!-- Main -->
+  <main class="wrap" id="main" aria-busy="false">
+    <div id="loader" class="loader hide" role="status" aria-live="polite">
+      Cargando facturas…
+    </div>
+
+    <table class="tabla" aria-describedby="mensaje">
+      <caption class="sr">
+        Listado de facturas y estado de pago del mes actual
+      </caption>
+
+      <thead>
+        <tr>
+          <th>Factura</th>
+          <th>Referencia</th>
+          <th>Valor</th>
+          <th>Método</th>
+          <th>Último pago</th>
+          <th>Estado</th>
+          <th>Acción</th>
+        </tr>
+      </thead>
+
+      <tbody id="tbody">
+        <!-- Se llena por JS -->
+      </tbody>
+    </table>
+
+    <!-- Placeholder vacío / sin resultados -->
+    <div id="emptyState" class="empty hide" role="status" aria-live="polite">
+      <div class="empty-emoji" aria-hidden="true">🧾</div>
+      <div class="empty-title">No hay resultados</div>
+      <div class="empty-sub muted">Prueba cambiando filtros o la búsqueda.</div>
+    </div>
+  </main>
+
+  <!-- Modal: Estadísticas -->
+  <div id="statsModal" class="modal hide" role="dialog" aria-modal="true" aria-labelledby="statsTitle">
+    <div class="modal-backdrop" data-close="stats"></div>
+
+    <div class="modal-card">
+      <div class="modal-head">
+        <div>
+          <h2 id="statsTitle">Estadísticas · Histórico AC</h2>
+          <p class="muted" style="margin:6px 0 0">Resumen, métodos, meses y pendientes.</p>
+        </div>
+        <button id="btnCloseStats" class="btn icon" type="button" aria-label="Cerrar" data-close="stats">✕</button>
+      </div>
+
+      <!-- Tabs -->
+      <div class="tabs" role="tablist" aria-label="Secciones de estadísticas">
+        <button class="tab is-active" type="button" role="tab" aria-selected="true" aria-controls="tabResumen" id="tResumen" data-tab="resumen">
+          Resumen
+        </button>
+        <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="tabMetodos" id="tMetodos" data-tab="metodos">
+          Métodos
+        </button>
+        <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="tabMeses" id="tMeses" data-tab="meses">
+          Meses
+        </button>
+        <button class="tab" type="button" role="tab" aria-selected="false" aria-controls="tabPendientes" id="tPendientes" data-tab="pendientes">
+          Pendientes
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Cada panel lo llena app.js según action=stats -->
+        <section id="tabResumen" class="tab-panel" role="tabpanel" aria-labelledby="tResumen">
+          <div id="statsBody">
+            <p class="muted">Cargando estadísticas…</p>
+          </div>
+        </section>
+
+        <section id="tabMetodos" class="tab-panel hide" role="tabpanel" aria-labelledby="tMetodos">
+          <div id="statsMetodos">
+            <p class="muted">Cargando métodos…</p>
+          </div>
+        </section>
+
+        <section id="tabMeses" class="tab-panel hide" role="tabpanel" aria-labelledby="tMeses">
+          <div id="statsMeses">
+            <p class="muted">Cargando meses…</p>
+          </div>
+        </section>
+
+        <section id="tabPendientes" class="tab-panel hide" role="tabpanel" aria-labelledby="tPendientes">
+          <div id="statsPendientes">
+            <p class="muted">Cargando pendientes…</p>
+          </div>
+        </section>
+      </div>
+
+      <div class="modal-foot">
+        <button class="btn" type="button" data-close="stats">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="wrap foot">
+    <small>Hecho con ❤️ por Alek & Cata · Facturas AC</small>
+  </footer>
+
+  <script src="./app.js"></script>
+</body>
+</html>
