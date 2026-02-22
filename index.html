@@ -1,12 +1,22 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es-CO">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Mobile-first viewport (notch friendly) -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+
   <title>Facturas AC · Pagos</title>
   <meta name="description" content="Control simple y claro de pagos de facturas (Alek & Cata). Histórico, estado del mes y estadísticas." />
   <meta name="color-scheme" content="light" />
-  <link rel="stylesheet" href="./styles.css">
+  <meta name="theme-color" content="#ffffff" />
+  <meta name="referrer" content="strict-origin-when-cross-origin" />
+
+  <!-- Fuente (opcional). Si no carga, cae a system-ui. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="./styles.css" />
 </head>
 
 <body>
@@ -21,7 +31,8 @@
         </div>
       </div>
 
-      <div class="head-actions">
+      <!-- Acciones (en móvil se vuelve una franja con scroll horizontal por CSS) -->
+      <div class="head-actions" aria-label="Acciones">
         <button id="btnRefresh" class="btn ghost" type="button" title="Actualizar lista">
           ↻ Actualizar
         </button>
@@ -30,11 +41,11 @@
           📊 Estadísticas
         </button>
 
-        <button id="btnExport" class="btn ghost" type="button" title="Exportar (próximamente)">
+        <button id="btnExport" class="btn ghost" type="button" title="Exportar (próximamente)" disabled aria-disabled="true">
           ⤓ Exportar
         </button>
 
-        <button id="btnImport" class="btn ghost" type="button" title="Importar (próximamente)">
+        <button id="btnImport" class="btn ghost" type="button" title="Importar (próximamente)" disabled aria-disabled="true">
           ⤒ Importar
         </button>
       </div>
@@ -77,7 +88,7 @@
       <div class="filters-row">
         <label class="field">
           <span class="label">Buscar</span>
-          <input id="q" type="search" placeholder="Factura o referencia…" autocomplete="off" />
+          <input id="q" type="search" placeholder="Factura o referencia…" autocomplete="off" inputmode="search" />
         </label>
 
         <label class="field">
@@ -97,18 +108,18 @@
           </select>
         </label>
 
-        <div class="filters-actions">
+        <div class="filters-actions" aria-label="Acciones de filtros">
           <button id="btnClearFilters" class="btn ghost" type="button" title="Limpiar filtros">
             ✕ Limpiar
           </button>
 
-          <button id="btnQuickPay" class="btn" type="button" title="Registro rápido (próximamente)">
+          <button id="btnQuickPay" class="btn" type="button" title="Registro rápido (próximamente)" disabled aria-disabled="true">
             ✅ Nuevo pago
           </button>
         </div>
       </div>
 
-      <p class="muted hint">
+      <p class="muted hint" id="editHint">
         Tip: edita <strong>Valor</strong> y <strong>Método</strong> directo en la tabla. Enter guarda, Esc revierte.
       </p>
     </section>
@@ -127,13 +138,13 @@
 
       <thead>
         <tr>
-          <th>Factura</th>
-          <th>Referencia</th>
-          <th>Valor</th>
-          <th>Método</th>
-          <th>Último pago</th>
-          <th>Estado</th>
-          <th>Acción</th>
+          <th scope="col">Factura</th>
+          <th scope="col">Referencia</th>
+          <th scope="col">Valor</th>
+          <th scope="col">Método</th>
+          <th scope="col">Último pago</th>
+          <th scope="col">Estado</th>
+          <th scope="col">Acción</th>
         </tr>
       </thead>
 
@@ -154,7 +165,7 @@
   <div id="statsModal" class="modal hide" role="dialog" aria-modal="true" aria-labelledby="statsTitle">
     <div class="modal-backdrop" data-close="stats"></div>
 
-    <div class="modal-card">
+    <div class="modal-card" role="document">
       <div class="modal-head">
         <div>
           <h2 id="statsTitle">Estadísticas · Histórico AC</h2>
@@ -180,7 +191,7 @@
       </div>
 
       <div class="modal-body">
-        <!-- Cada panel lo llena app.js según action=stats -->
+        <!-- Cada panel lo llena app.js -->
         <section id="tabResumen" class="tab-panel" role="tabpanel" aria-labelledby="tResumen">
           <div id="statsBody">
             <p class="muted">Cargando estadísticas…</p>
@@ -216,6 +227,6 @@
     <small>Hecho con ❤️ por Alek & Cata · Facturas AC</small>
   </footer>
 
-  <script src="./app.js"></script>
+  <script src="./app.js" defer></script>
 </body>
 </html>
