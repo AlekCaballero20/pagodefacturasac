@@ -1,7 +1,7 @@
 ﻿'use strict';
 
 /* =============================================================================
-  FACTURAS AC Â· app.js â€” v2.0
+  FACTURAS AC · app.js — v2.0
   ---------------------------------------------------------------------------
   Cambios respecto a versiÃ³n anterior:
   - LÃ³gica de ciclo real por dÃ­a de corte (calcularFechaVencimiento, calcularInicioCiclo)
@@ -9,8 +9,8 @@
   - Modal de confirmaciÃ³n de pago con fecha editable (openPayModal)
   - CorrecciÃ³n bug crÃ­tico: editarMetodo ya funciona (action=editarMetodo ahora
     existe en el backend)
-  - Stats mejoradas: buildStatsResumen usa datos reales del HistÃ³rico
-  - buildStatsMeses usa porMes del backend (histÃ³rico real, no solo Ãºltimos pagos)
+  - Stats mejoradas: buildStatsResumen usa datos reales del Historico
+  - buildStatsMeses usa porMes del backend (historico real, no solo Ãºltimos pagos)
   - buildStatsMetodos usa porMetodo del backend
   - computeFrontStats corregido (totalPagado era suma de todos, pagados o no)
   - prettyMonthKey formatea "YYYY-MM" â†’ "Ene 2026"
@@ -28,8 +28,8 @@ const scriptURL =
 const STATE = {
   facturas   : [],
   filtered   : [],
-  stats      : null,   // stats del backend (HistÃ³rico), cacheadas
-  methods    : [],     // lista de mÃ©todos Ãºnicos (para selects)
+  stats      : null,   // stats del backend (Historico), cacheadas
+  methods    : [],     // lista de metodos Ãºnicos (para selects)
   lastStatsAt: 0,
 };
 
@@ -133,7 +133,7 @@ function monthKeyFromDate(d) {
 const MESES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
 function prettyMonthKey(key) {
-  if (!key || key === 'Sin fecha') return key || 'â€”';
+  if (!key || key === 'Sin fecha') return key || '—';
   const [y, m] = String(key).split('-');
   if (!y || !m) return key;
   const idx = Number(m) - 1;
@@ -167,7 +167,7 @@ function todayForInput() {
    Dado diaCorte (1â€“31) y la fecha de referencia:
 
    Si hoy.dia <= diaCorte:
-     - El ciclo actual vence este mes (ajustado al Ãºltimo dÃ­a vÃ¡lido)
+     - El ciclo actual vence este mes (ajustado al Ãºltimo dÃ­a valido)
      - El ciclo anterior venciÃ³ el mes pasado
 
    Si hoy.dia > diaCorte:
@@ -181,72 +181,32 @@ function todayForInput() {
  * Calcula la prÃ³xima fecha de vencimiento del ciclo actual.
  * Maneja meses cortos: diaCorte 31 en febrero â†’ Ãºltimo dÃ­a de feb.
  */
-function calcularFechaVencimiento(diaCorte, ref = new Date()) {
+function calcularFechaVencimientoMes(diaCorte, year, monthIndex) {
   if (!diaCorte || diaCorte < 1 || diaCorte > 31) return null;
-  const dia = Number(diaCorte);
-  const hoy = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate());
-
-  let anio, mes;
-  if (hoy.getDate() <= dia) {
-    anio = hoy.getFullYear();
-    mes  = hoy.getMonth();
-  } else {
-    const next = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 1);
-    anio = next.getFullYear();
-    mes  = next.getMonth();
-  }
-
-  const ultimoDia = new Date(anio, mes + 1, 0).getDate();
-  return new Date(anio, mes, Math.min(dia, ultimoDia));
+  const ultimoDia = new Date(year, monthIndex + 1, 0).getDate();
+  return new Date(year, monthIndex, Math.min(Number(diaCorte), ultimoDia));
 }
 
 /**
  * Calcula el inicio del ciclo actual (= dÃ­a siguiente al vencimiento anterior).
  * JS maneja overflow: new Date(2026, 1, 29) â†’ 1 de marzo. Correcto.
  */
-function calcularInicioCiclo(diaCorte, ref = new Date()) {
-  if (!diaCorte || diaCorte < 1 || diaCorte > 31) return null;
-  const dia = Number(diaCorte);
-  const hoy = new Date(ref.getFullYear(), ref.getMonth(), ref.getDate());
-
-  let anio, mes;
-  if (hoy.getDate() <= dia) {
-    // Vencimiento anterior: mes pasado
-    const prev = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1);
-    anio = prev.getFullYear();
-    mes  = prev.getMonth();
-  } else {
-    // Vencimiento anterior: este mes
-    anio = hoy.getFullYear();
-    mes  = hoy.getMonth();
-  }
-
-  const ultimoDia = new Date(anio, mes + 1, 0).getDate();
-  const diaReal   = Math.min(dia, ultimoDia);
-  // DÃ­a siguiente al vencimiento anterior
-  return new Date(anio, mes, diaReal + 1);
+function yaEsPagadoMesActual(fechaStr, ref = new Date()) {
+  const fechaPago = parseFechaPago(fechaStr);
+  if (!fechaPago) return false;
+  return (
+    fechaPago.getFullYear() === ref.getFullYear() &&
+    fechaPago.getMonth() === ref.getMonth()
+  );
 }
 
 /**
- * Â¿La factura ya fue pagada en su ciclo actual?
+ * ¿La factura ya fue pagada en su ciclo actual?
  * - Con diaCorte: fechaPago >= inicio del ciclo actual.
  * - Sin diaCorte: fallback a mes calendario.
  */
-function yaEsPagadoEnCiclo(fechaStr, diaCorte) {
-  const fechaPago = parseFechaPago(fechaStr);
-  if (!fechaPago) return false;
-
-  if (!diaCorte) {
-    // Fallback: mes calendario
-    const h = new Date();
-    return fechaPago.getMonth() === h.getMonth() && fechaPago.getFullYear() === h.getFullYear();
-  }
-
-  const inicio = calcularInicioCiclo(diaCorte);
-  if (!inicio) return false;
-  // Comparar fechas sin hora
-  const fp = new Date(fechaPago.getFullYear(), fechaPago.getMonth(), fechaPago.getDate());
-  return fp >= inicio;
+function calcularFechaVencimiento(diaCorte, ref = new Date()) {
+  return calcularFechaVencimientoMes(diaCorte, ref.getFullYear(), ref.getMonth());
 }
 
 /**
@@ -256,25 +216,34 @@ function yaEsPagadoEnCiclo(fechaStr, diaCorte) {
  */
 function calcularEstado(f) {
   const diaCorte = f.diaCorte ? Number(f.diaCorte) : null;
-  const pagado   = yaEsPagadoEnCiclo(f.ultimo, diaCorte);
+  const hoyRef   = new Date();
+  const hoy      = new Date(hoyRef.getFullYear(), hoyRef.getMonth(), hoyRef.getDate());
+  const pagado   = yaEsPagadoMesActual(f.ultimo, hoyRef);
 
   if (!diaCorte) return { estado: pagado ? 'pagado' : 'pendiente', diasRestantes: null, fechaVence: null };
 
-  const fechaVence = calcularFechaVencimiento(diaCorte);
-  if (!fechaVence) return { estado: 'pendiente', diasRestantes: null, fechaVence: null };
+  const fechaVenceMesActual = calcularFechaVencimientoMes(diaCorte, hoy.getFullYear(), hoy.getMonth());
+  if (!fechaVenceMesActual) return { estado: 'pendiente', diasRestantes: null, fechaVence: null };
 
-  const hoy  = new Date(); hoy.setHours(0, 0, 0, 0);
-  const fv   = new Date(fechaVence.getFullYear(), fechaVence.getMonth(), fechaVence.getDate());
+  // Si ya pagaste este mes, se mantiene "Pagado" y mostramos referencia del próximo mes.
+  if (pagado) {
+    const nextRef = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 1);
+    const fechaVenceSiguiente = calcularFechaVencimientoMes(diaCorte, nextRef.getFullYear(), nextRef.getMonth());
+    const diffNext = fechaVenceSiguiente
+      ? Math.ceil((fechaVenceSiguiente - hoy) / 86400000)
+      : null;
+    return { estado: 'pagado', diasRestantes: diffNext, fechaVence: fechaVenceSiguiente };
+  }
+
+  const fv   = new Date(fechaVenceMesActual.getFullYear(), fechaVenceMesActual.getMonth(), fechaVenceMesActual.getDate());
   const diff = Math.ceil((fv - hoy) / 86400000);
 
-  let estado;
+  let estado = 'pendiente';
   if      (diff < 0)  estado = 'vencido';
   else if (diff <= 2) estado = 'urgente';
   else if (diff <= 5) estado = 'proximo';
-  else                estado = 'pendiente';
 
-  if (pagado) return { estado: 'pagado', diasRestantes: diff, fechaVence };
-  return { estado, diasRestantes: diff, fechaVence };
+  return { estado, diasRestantes: diff, fechaVence: fechaVenceMesActual };
 }
 
 /* ===========================
@@ -368,10 +337,11 @@ async function fetchFacturas() {
 /**
  * Registra un pago. fechaDMY es opcional ("D/M/YYYY"); sin ella el backend usa hoy.
  */
-async function registrarPago(row, fechaDMY, metodo) {
+async function registrarPago(row, fechaDMY, metodo, valorPagado) {
   const params = new URLSearchParams({ action: "registrar", row: String(row) });
   if (fechaDMY) params.append("fechaPago", fechaDMY);
   if (metodo != null && String(metodo).trim() !== "") params.append("metodo", String(metodo).trim());
+  if (valorPagado != null && Number.isFinite(Number(valorPagado))) params.append("valorPagado", String(valorPagado));
   const json = await fetchJSON(`${scriptURL}?${params.toString()}`);
   if (!json.ok) throw new Error(json.error || "Error al registrar");
   return json;
@@ -391,7 +361,7 @@ async function editarMetodo(row, metodo) {
     action: "editarMetodo", row: String(row), metodo: String(metodo || ""),
   });
   const json = await fetchJSON(`${scriptURL}?${params.toString()}`);
-  if (!json.ok) throw new Error(json.error || "Error al editar mÃ©todo");
+  if (!json.ok) throw new Error(json.error || "Error al editar metodo");
   return json;
 }
 
@@ -413,7 +383,7 @@ function escapeHtml(str) {
 
 function normalizeMetodo(s) {
   const t = String(s ?? "").trim();
-  return t === "â€”" ? "" : t;
+  return t === "—" ? "" : t;
 }
 
 function valorNum(f) {
@@ -424,9 +394,9 @@ function valorNum(f) {
 function setHintByMode() {
   if (!$editHint) return;
   if (isMobileUI()) {
-    $editHint.innerHTML = `Tip: en celular toca <strong>Valor</strong> o <strong>MÃ©todo</strong> para editar.`;
+    $editHint.innerHTML = `Tip: en celular toca <strong>Valor</strong> o <strong>Metodo</strong> para editar.`;
   } else {
-    $editHint.innerHTML = `Tip: edita <strong>Valor</strong> y <strong>MÃ©todo</strong> directo en la tabla. Enter guarda, Esc revierte.`;
+    $editHint.innerHTML = `Tip: edita <strong>Valor</strong> y <strong>Metodo</strong> directo en la tabla. Enter guarda, Esc revierte.`;
   }
 }
 
@@ -459,18 +429,18 @@ function rowHTML(f) {
         ${fmtCOP(v)}
       </td>
 
-      <td data-label="MÃ©todo"
+      <td data-label="Metodo"
           class="editable metodo"
           contenteditable="${isMobileUI() ? "false" : "true"}"
           data-metodo="${escapeHtml(metodoTxt)}">
-        ${escapeHtml(metodoTxt || 'â€”')}
+        ${escapeHtml(metodoTxt || '—')}
       </td>
 
-      <td data-label="Ãšltimo pago" class="fecha">${escapeHtml(ultimo)}</td>
+      <td data-label="Ultimo pago" class="fecha">${escapeHtml(ultimo)}</td>
       <td data-label="Vence en" class="vence">${escapeHtml(venceTxt)}</td>
       <td data-label="Estado" class="estado">${estadoHTML}</td>
 
-      <td data-label="AcciÃ³n">
+      <td data-label="Accion">
         <button class="btn" data-row="${escapeHtml(f.row)}" data-action="registrar">
           Registrar
         </button>
@@ -523,11 +493,11 @@ function applyFilters() {
       }
     }
 
-    // Filtro de mÃ©todo
+    // Filtro de metodo
     const m = normalizeMetodo(f.metodo);
     if (metodo !== "all" && m !== metodo) return false;
 
-    // BÃºsqueda libre
+    // Busqueda libre
     if (q) {
       const hay =
         String(f.nombre ?? "").toLowerCase().includes(q) ||
@@ -608,11 +578,11 @@ function updateKPIs() {
 }
 
 /* ===========================
-   STATS â€” PANELES DEL MODAL
+   STATS — PANELES DEL MODAL
 =========================== */
 
 /**
- * Panel Resumen: usa datos del HistÃ³rico (backStats) + ciclo actual (frontend).
+ * Panel Resumen: usa datos del Historico (backStats) + ciclo actual (frontend).
  */
 function buildStatsResumen(backStats = null) {
   if (!$statsBody) return;
@@ -620,23 +590,23 @@ function buildStatsResumen(backStats = null) {
   const ciclo = computeCicloStats();
   const totalFacturas = STATE.facturas.length;
 
-  // HistÃ³rico: preferimos backend si estÃ¡ disponible
+  // Historico: preferimos backend si estÃ¡ disponible
   const totalPagadoHistorico = backStats?.totalPagado   || 0;
   const numPagosTotal        = backStats?.numPagos       || 0;
   const promedio             = backStats?.promedioPago   || 0;
 
-  // Este mes: backend tiene datos del HistÃ³rico real
+  // Este mes: backend tiene datos del Historico real
   const totalEsteMes = backStats?.totalEsteMes ?? ciclo.valorPagado;
   const pagosEsteMes = backStats?.pagosEsteMes ?? ciclo.pagadas;
 
-  // Top gastos del histÃ³rico
+  // Top gastos del historico
   const topFacturas = (backStats?.porFactura || []).slice(0, 5);
 
   // Alertas destacadas
   const alertaCards = [];
   if (ciclo.vencidas > 0) {
     alertaCards.push(`<div class="stat" style="border-color:#dc2626;background:#fff5f5;">
-      <div class="k">âš ï¸ Vencidas</div>
+      <div class="k">⚠️ Vencidas</div>
       <div class="v">${ciclo.vencidas}</div>
     </div>`);
   }
@@ -648,14 +618,14 @@ function buildStatsResumen(backStats = null) {
   }
   if (ciclo.proximas > 0) {
     alertaCards.push(`<div class="stat" style="border-color:#fde047;background:#fffbeb;">
-      <div class="k">â° PrÃ³ximas (3-5d)</div>
+      <div class="k">⏰ Proximas (3-5d)</div>
       <div class="v">${ciclo.proximas}</div>
     </div>`);
   }
 
   const topHtml = topFacturas.length
     ? `<div class="mini-table" style="margin-top:.75rem;">
-        <div class="row head"><span>Top gastos histÃ³rico</span><span>Total pagado</span></div>
+        <div class="row head"><span>Top gastos historico</span><span>Total pagado</span></div>
         ${topFacturas.map(f =>
           `<div class="row"><span>${escapeHtml(f.factura)}</span><strong>${fmtCOP(f.total)}</strong></div>`
         ).join('')}
@@ -667,7 +637,7 @@ function buildStatsResumen(backStats = null) {
       <div class="stat"><div class="k">Pagado este mes (hist.)</div><div class="v">${fmtCOP(totalEsteMes)}</div></div>
       <div class="stat"><div class="k">Pendiente este ciclo</div><div class="v">${fmtCOP(ciclo.valorPendiente)}</div></div>
       <div class="stat"><div class="k">Pagadas / Total</div><div class="v">${ciclo.pagadas} / ${totalFacturas}</div></div>
-      <div class="stat"><div class="k">Total histÃ³rico</div><div class="v">${fmtCOP(totalPagadoHistorico)}</div></div>
+      <div class="stat"><div class="k">Total historico</div><div class="v">${fmtCOP(totalPagadoHistorico)}</div></div>
       <div class="stat"><div class="k">Pagos registrados</div><div class="v">${numPagosTotal}</div></div>
       <div class="stat"><div class="k">Promedio por pago</div><div class="v">${fmtCOP(promedio)}</div></div>
       ${alertaCards.join('')}
@@ -675,14 +645,14 @@ function buildStatsResumen(backStats = null) {
     ${topHtml}
     <p class="muted" style="margin:.75rem 0 0;font-size:.8rem;">
       ${backStats
-        ? 'ðŸ“¡ HistÃ³rico desde servidor Â· Ciclo calculado en tiempo real'
-        : 'âš ï¸ Datos locales â€” backend no respondiÃ³ o sin registros en HistÃ³rico'}
+        ? 'ðŸ“¡ Historico desde servidor · Ciclo calculado en tiempo real'
+        : '⚠️ Datos locales — backend no respondio o sin registros en Historico'}
     </p>
   `;
 }
 
 /**
- * Panel MÃ©todos: usa porMetodo del HistÃ³rico (backend) si estÃ¡ disponible.
+ * Panel Metodos: usa porMetodo del Historico (backend) si estÃ¡ disponible.
  */
 function buildStatsMetodos(backStats = null) {
   if (!$statsMetodos) return;
@@ -695,7 +665,7 @@ function buildStatsMetodos(backStats = null) {
     // Fallback: agrupaciÃ³n local por valor base (menos preciso)
     const map = {};
     STATE.facturas.forEach(f => {
-      const m = normalizeMetodo(f.metodo) || 'Sin mÃ©todo';
+      const m = normalizeMetodo(f.metodo) || 'Sin metodo';
       if (!map[m]) map[m] = { metodo: m, total: 0, count: 0 };
       map[m].total += valorNum(f);
       map[m].count += 1;
@@ -704,13 +674,13 @@ function buildStatsMetodos(backStats = null) {
   }
 
   if (!rows.length) {
-    $statsMetodos.innerHTML = `<p class="muted">No hay datos de mÃ©todos.</p>`;
+    $statsMetodos.innerHTML = `<p class="muted">No hay datos de metodos.</p>`;
     return;
   }
 
   $statsMetodos.innerHTML = `
     <div class="mini-table">
-      <div class="row head"><span>MÃ©todo (pagos)</span><span>Total pagado</span></div>
+      <div class="row head"><span>Metodo (pagos)</span><span>Total pagado</span></div>
       ${rows.map(r =>
         `<div class="row">
           <span>${escapeHtml(r.metodo)} <span class="muted">(${r.count})</span></span>
@@ -719,14 +689,14 @@ function buildStatsMetodos(backStats = null) {
       ).join('')}
     </div>
     <p class="muted" style="margin:.6rem 0 0;font-size:.8rem;">
-      ${backStats?.porMetodo?.length > 0 ? 'Del HistÃ³rico real' : 'CÃ¡lculo local (aproximado)'}
+      ${backStats?.porMetodo?.length > 0 ? 'Del Historico real' : 'Calculo local (aproximado)'}
     </p>
   `;
 }
 
 /**
- * Panel Meses: usa porMes del HistÃ³rico (backend) si estÃ¡ disponible.
- * El fallback local solo muestra el ÃšLTIMO pago de cada factura â€” es menos preciso.
+ * Panel Meses: usa porMes del Historico (backend) si estÃ¡ disponible.
+ * El fallback local solo muestra el ÃšLTIMO pago de cada factura — es menos preciso.
  */
 function buildStatsMeses(backStats = null) {
   if (!$statsMeses) return;
@@ -750,7 +720,7 @@ function buildStatsMeses(backStats = null) {
   }
 
   if (!rows.length) {
-    $statsMeses.innerHTML = `<p class="muted">AÃºn no hay pagos con fecha registrados.</p>`;
+    $statsMeses.innerHTML = `<p class="muted">Aun no hay pagos con fecha registrados.</p>`;
     return;
   }
 
@@ -765,7 +735,7 @@ function buildStatsMeses(backStats = null) {
       ).join('')}
     </div>
     <p class="muted" style="margin:.6rem 0 0;font-size:.8rem;">
-      ${backStats?.porMes?.length > 0 ? 'Del HistÃ³rico real' : 'CÃ¡lculo local (solo Ãºltimo pago por factura)'}
+      ${backStats?.porMes?.length > 0 ? 'Del Historico real' : 'Calculo local (solo ultimo pago por factura)'}
     </p>
   `;
 }
@@ -792,21 +762,21 @@ function buildStatsPendientes() {
     <div class="stats-grid">
       <div class="stat"><div class="k">Sin pagar</div><div class="v">${ciclo.pendientes}</div></div>
       <div class="stat"><div class="k">Valor pendiente</div><div class="v">${fmtCOP(ciclo.valorPendiente)}</div></div>
-      ${ciclo.vencidas > 0 ? `<div class="stat" style="border-color:#dc2626;background:#fff5f5;"><div class="k">âš ï¸ Vencidas</div><div class="v">${ciclo.vencidas}</div></div>` : ''}
+      ${ciclo.vencidas > 0 ? `<div class="stat" style="border-color:#dc2626;background:#fff5f5;"><div class="k">⚠️ Vencidas</div><div class="v">${ciclo.vencidas}</div></div>` : ''}
       ${ciclo.urgentes > 0 ? `<div class="stat" style="border-color:#fb923c;background:#fff7ed;"><div class="k">ðŸ”´ Urgentes (0-2d)</div><div class="v">${ciclo.urgentes}</div></div>` : ''}
     </div>`;
 
   // Lista de alertas
   const alertasHtml = alertas.length
     ? `<div class="mini-table" style="margin-top:.75rem;">
-        <div class="row head"><span>Requieren atenciÃ³n</span><span>Valor Â· dÃ­as</span></div>
+        <div class="row head"><span>Requieren atencion</span><span>Valor · dias</span></div>
         ${alertas.map(f => {
           const dias = f.diasRestantes < 0
             ? `hace ${Math.abs(f.diasRestantes)}d`
             : f.diasRestantes === 0 ? 'hoy'
             : `${f.diasRestantes}d`;
           return `<div class="row">
-            <span>${escapeHtml(f.nombre || 'â€”')} ${buildEstadoBadge(f.estado)}</span>
+            <span>${escapeHtml(f.nombre || '—')} ${buildEstadoBadge(f.estado)}</span>
             <strong>${fmtCOP(valorNum(f))} <span class="muted">(${dias})</span></strong>
           </div>`;
         }).join('')}
@@ -816,10 +786,10 @@ function buildStatsPendientes() {
   // Top pendientes por valor
   const topHtml = sinPagar.length
     ? `<div class="mini-table" style="margin-top:.75rem;">
-        <div class="row head"><span>Pendientes Â· Top por valor</span><span>Valor</span></div>
+        <div class="row head"><span>Pendientes · Top por valor</span><span>Valor</span></div>
         ${sinPagar.map(f => `
           <div class="row">
-            <span>${escapeHtml(f.nombre || 'â€”')} <span class="muted">(${escapeHtml(f.referencia || 'â€”')})</span></span>
+            <span>${escapeHtml(f.nombre || '—')} <span class="muted">(${escapeHtml(f.referencia || '—')})</span></span>
             <strong>${fmtCOP(valorNum(f))}</strong>
           </div>`).join('')}
       </div>`
@@ -841,7 +811,7 @@ function refreshStatsPanels() {
 }
 
 /* ===========================
-   MODAL STATS â€” APERTURA Y TABS
+   MODAL STATS — APERTURA Y TABS
 =========================== */
 function openStatsModal() {
   $statsModal?.classList.remove("hide");
@@ -868,12 +838,12 @@ function switchTab(key) {
 
 async function loadStats() {
   // Estado de carga
-  if ($statsBody)      $statsBody.innerHTML      = `<p class="muted">Cargando estadÃ­sticasâ€¦</p>`;
-  if ($statsMetodos)   $statsMetodos.innerHTML   = `<p class="muted">Cargandoâ€¦</p>`;
-  if ($statsMeses)     $statsMeses.innerHTML     = `<p class="muted">Cargandoâ€¦</p>`;
-  if ($statsPendientes)$statsPendientes.innerHTML= `<p class="muted">Cargandoâ€¦</p>`;
+  if ($statsBody)      $statsBody.innerHTML      = `<p class="muted">Cargando estadisticas...</p>`;
+  if ($statsMetodos)   $statsMetodos.innerHTML   = `<p class="muted">Cargando...</p>`;
+  if ($statsMeses)     $statsMeses.innerHTML     = `<p class="muted">Cargando...</p>`;
+  if ($statsPendientes)$statsPendientes.innerHTML= `<p class="muted">Cargando...</p>`;
 
-  // Intentar backend (tiene datos reales del HistÃ³rico)
+  // Intentar backend (tiene datos reales del Historico)
   let back = null;
   try {
     back = await fetchStats();
@@ -919,22 +889,26 @@ function ensurePayModal() {
       <div class="modal-head">
         <div>
           <h2 id="payTitle">Registrar pago</h2>
-          <p class="muted" id="paySub" style="margin:6px 0 0">â€”</p>
+          <p class="muted" id="paySub" style="margin:6px 0 0">—</p>
         </div>
-        <button class="btn icon" type="button" aria-label="Cerrar" data-close="pay">âœ•</button>
+        <button class="btn icon" type="button" aria-label="Cerrar" data-close="pay">✕</button>
       </div>
       <div class="modal-body">
         <div class="field" style="margin-bottom:.5rem;">
           <span class="label">Fecha de pago</span>
           <input id="payFecha" type="date" />
         </div>
+        <div class="field" style="margin-bottom:.5rem;">
+          <span class="label">Valor pagado</span>
+          <input id="payValor" type="text" inputmode="numeric" autocomplete="off" placeholder="Ej: 50000" />
+        </div>
         <p class="muted hint" style="margin:0;">
-          Por defecto: hoy. CÃ¡mbiala si el pago real fue en otra fecha.
+          Puedes ajustar fecha y valor real pagado. El valor base no se modifica.
         </p>
       </div>
       <div class="modal-foot">
         <button id="payCancel" class="btn ghost" type="button" data-close="pay">Cancelar</button>
-        <button id="payConfirm" class="btn" type="button">âœ… Confirmar pago</button>
+        <button id="payConfirm" class="btn" type="button">✅ Confirmar pago</button>
       </div>
     </div>
   `;
@@ -946,8 +920,9 @@ function ensurePayModal() {
 function openPayModal({ row, nombre, valor }) {
   const $m = ensurePayModal();
   $m.dataset.row = String(row);
-  $("#paySub", $m).textContent = `${nombre} Â· ${fmtCOP(valor)}`;
+  $("#paySub", $m).textContent = `${nombre} · Base: ${fmtCOP(valor)}`;
   $("#payFecha", $m).value = todayForInput();
+  $("#payValor", $m).value = String(Number(valor || 0));
 
   $m.classList.remove("hide");
   document.body.style.overflow = "hidden";
@@ -968,27 +943,34 @@ async function confirmPayModal() {
 
   const row          = Number($m.dataset.row);
   const $fechaInput  = $("#payFecha", $m);
+  const $valorInput  = $("#payValor", $m);
   const $btnConfirm  = $("#payConfirm", $m);
 
   const fechaDMY = htmlDateToDMY($fechaInput.value);
   if (!fechaDMY) {
-    showMsg("Selecciona una fecha vÃ¡lida", "error");
+    showMsg("Selecciona una fecha valida", "error");
+    return;
+  }
+
+  const valorPagado = parseCOP($valorInput.value);
+  if (valorPagado == null || valorPagado < 0) {
+    showMsg("Ingresa un valor pagado valido", "error");
     return;
   }
 
   $btnConfirm.disabled    = true;
-  $btnConfirm.textContent = "â³";
+  $btnConfirm.textContent = "⏳";
 
   try {
     const f = getFacturaByRow(row);
     const metodoPago = normalizeMetodo(f?.metodo);
-    const { fecha } = await registrarPago(row, fechaDMY, metodoPago);
+    const { fecha } = await registrarPago(row, fechaDMY, metodoPago, valorPagado);
 
     // Actualizar STATE y re-renderizar
     if (f) f.ultimo = String(fecha || "");
     STATE.stats = null;
 
-    showMsg("Pago registrado âœ…", "ok");
+    showMsg(`Pago registrado: ${fmtCOP(valorPagado)} ✅`, "ok");
     updateKPIs();
     applyFilters();
     if (isStatsModalOpen()) await loadStats();
@@ -997,12 +979,12 @@ async function confirmPayModal() {
     showMsg("Error: " + err.message, "error");
   } finally {
     $btnConfirm.disabled    = false;
-    $btnConfirm.textContent = "âœ… Confirmar pago";
+    $btnConfirm.textContent = "✅ Confirmar pago";
   }
 }
 
 /* ===========================
-   MODAL DE EDICIÃ“N (Valor/MÃ©todo en mÃ³vil)
+   MODAL DE EDICIÃ“N (Valor/Metodo en mÃ³vil)
 =========================== */
 function ensureEditModal() {
   let $m = $("#editModal");
@@ -1021,9 +1003,9 @@ function ensureEditModal() {
       <div class="modal-head">
         <div>
           <h2 id="editTitle">Editar</h2>
-          <p class="muted" id="editSub" style="margin:6px 0 0">â€”</p>
+          <p class="muted" id="editSub" style="margin:6px 0 0">—</p>
         </div>
-        <button class="btn icon" type="button" aria-label="Cerrar" data-close="edit">âœ•</button>
+        <button class="btn icon" type="button" aria-label="Cerrar" data-close="edit">✕</button>
       </div>
       <div class="modal-body">
         <div class="field" style="margin-bottom:.75rem;">
@@ -1031,7 +1013,7 @@ function ensureEditModal() {
           <input id="editValor" class="hide" type="text" inputmode="numeric" autocomplete="off" placeholder="Ej: 150000" />
           <select id="editMetodo" class="hide"></select>
         </div>
-        <p class="muted hint" id="editHelp" style="margin:0;">â€”</p>
+        <p class="muted hint" id="editHelp" style="margin:0;">—</p>
       </div>
       <div class="modal-foot">
         <button id="editCancel" class="btn ghost" type="button" data-close="edit">Cancelar</button>
@@ -1061,19 +1043,19 @@ function openEditModal({ row, field, currentValue }) {
 
   if (field === "valor") {
     $title.textContent = "Editar valor";
-    $sub.textContent   = "Escribe el valor en COP (sin puntos tambiÃ©n sirve).";
+    $sub.textContent   = "Escribe el valor en COP (sin puntos también sirve).";
     $label.textContent = "Valor";
-    $help.textContent  = "Tip: puedes pegar el nÃºmero tal cual. Yo me encargo del formato. ðŸ™‚";
+    $help.textContent  = "Tip: puedes pegar el numero tal cual. Yo me encargo del formato.";
     $inpValor.value    = String(parseCOP(currentValue) ?? "");
     $inpValor.classList.remove("hide");
     setTimeout(() => { $inpValor.focus(); $inpValor.select(); }, 0);
   } else if (field === "metodo") {
-    $title.textContent = "Editar mÃ©todo";
-    $sub.textContent   = "Selecciona el mÃ©todo de pago.";
-    $label.textContent = "MÃ©todo";
-    $help.textContent  = "Si falta un mÃ©todo, escrÃ­belo en la hoja y luego actualiza.";
+    $title.textContent = "Editar metodo";
+    $sub.textContent   = "Selecciona el metodo de pago.";
+    $label.textContent = "Metodo";
+    $help.textContent  = "Si falta un metodo, escribelo en la hoja y luego actualiza.";
     $selMetodo.innerHTML =
-      `<option value="">â€”</option>` +
+      `<option value="">—</option>` +
       STATE.methods.map(m => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join("");
     $selMetodo.value = normalizeMetodo(currentValue) || "";
     $selMetodo.classList.remove("hide");
@@ -1105,17 +1087,17 @@ async function saveEditFromModal() {
   try {
     if (field === "valor") {
       const n = parseCOP($inpValor.value);
-      if (n == null || n <= 0) { showMsg("Pon un valor vÃ¡lido ðŸ˜…", "error"); return; }
+      if (n == null || n <= 0) { showMsg("Pon un valor valido", "error"); return; }
       await editarValor(row, n);
       const f = STATE.facturas.find(x => Number(x.row) === row);
       if (f) f.valor = n;
-      showMsg("Valor actualizado âœ…", "ok");
+      showMsg("Valor actualizado ✅", "ok");
     } else if (field === "metodo") {
       const m = normalizeMetodo($selMetodo.value);
       await editarMetodo(row, m);
       const f = STATE.facturas.find(x => Number(x.row) === row);
       if (f) f.metodo = m;
-      showMsg("MÃ©todo actualizado âœ…", "ok");
+      showMsg("Metodo actualizado ✅", "ok");
       buildMetodoOptions();
     }
     updateKPIs();
@@ -1158,7 +1140,7 @@ async function saveEditableCell(td) {
   if (td.classList.contains("valor")) {
     const n = parseCOP(td.textContent);
     if (n == null || n <= 0) {
-      showMsg("Valor invÃ¡lido ðŸ˜µâ€ðŸ’«", "error");
+      showMsg("Valor invalido", "error");
       const old = valorNum(f);
       td.textContent = fmtCOP(old);
       td.dataset.valor = String(old);
@@ -1169,7 +1151,7 @@ async function saveEditableCell(td) {
     f.valor = n;
     td.textContent   = fmtCOP(n);
     td.dataset.valor = String(n);
-    showMsg("Valor actualizado âœ…", "ok");
+    showMsg("Valor actualizado ✅", "ok");
   }
 
   if (td.classList.contains("metodo")) {
@@ -1178,10 +1160,10 @@ async function saveEditableCell(td) {
     if (m === prev) return;
     await editarMetodo(row, m);
     f.metodo = m;
-    td.textContent   = m || "â€”";
+    td.textContent   = m || "—";
     td.dataset.metodo = m;
     buildMetodoOptions();
-    showMsg("MÃ©todo actualizado âœ…", "ok");
+    showMsg("Metodo actualizado ✅", "ok");
   }
 
   updateKPIs();
@@ -1202,7 +1184,7 @@ function revertEditableCell(td) {
   }
   if (td.classList.contains("metodo")) {
     const m = normalizeMetodo(f.metodo);
-    td.textContent    = m || "â€”";
+    td.textContent    = m || "—";
     td.dataset.metodo = m;
   }
 }
@@ -1223,7 +1205,7 @@ document.addEventListener("click", ev => {
   const f = getFacturaByRow(row);
   if (!f) return;
 
-  openPayModal({ row, nombre: f.nombre || "â€”", valor: valorNum(f) });
+  openPayModal({ row, nombre: f.nombre || "—", valor: valorNum(f) });
 });
 
 // Click en celdas editables
@@ -1262,7 +1244,7 @@ document.addEventListener("keydown", async ev => {
         setEditingState(td, false);
         revertEditableCell(td);
         td.blur();
-        showMsg("EdiciÃ³n cancelada", "ok");
+        showMsg("Edicion cancelada", "ok");
       }
     }
   }
@@ -1374,6 +1356,7 @@ async function boot() {
 }
 
 boot();
+
 
 
 

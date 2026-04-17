@@ -388,6 +388,8 @@ h1{
 }
 
 input[type="search"],
+input[type="text"],
+input[type="date"],
 select{
   height: var(--tap);
   border-radius: 12px;
@@ -407,6 +409,8 @@ input[type="search"]::placeholder{
 }
 
 input[type="search"]:focus,
+input[type="text"]:focus,
+input[type="date"]:focus,
 select:focus{
   border-color: rgba(37, 99, 235, 0.35);
   box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
