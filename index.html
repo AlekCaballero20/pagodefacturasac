@@ -17,9 +17,17 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
   <link rel="stylesheet" href="./styles.css" />
+
+  <!-- Favicons (opcionales, no rompen nada si no existen)
+  <link rel="icon" href="./icons/icon-192.png" sizes="192x192" />
+  <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+  -->
 </head>
 
 <body>
+  <!-- Skip link (accesibilidad, y sí, sirve en teclado) -->
+  <a class="sr" href="#main">Saltar al contenido</a>
+
   <!-- Header -->
   <header class="wrap">
     <div class="head">
@@ -41,10 +49,12 @@
           📊 Estadísticas
         </button>
 
+        <!-- Placeholder: no se usa todavía -->
         <button id="btnExport" class="btn ghost" type="button" title="Exportar (próximamente)" disabled aria-disabled="true">
           ⤓ Exportar
         </button>
 
+        <!-- Placeholder: no se usa todavía -->
         <button id="btnImport" class="btn ghost" type="button" title="Importar (próximamente)" disabled aria-disabled="true">
           ⤒ Importar
         </button>
@@ -95,8 +105,12 @@
           <span class="label">Estado</span>
           <select id="fEstado">
             <option value="all">Todas</option>
-            <option value="pagado">Pagadas (este mes)</option>
-            <option value="pendiente">Pendientes (este mes)</option>
+            <option value="pagado">Pagado</option>
+            <option value="pendiente">Pendiente</option>
+            <option value="proximo">Próximo</option>
+            <option value="urgente">Urgente</option>
+            <option value="vencido">Vencido</option>
+            <option value="sin-pagar">Sin pagar</option>
           </select>
         </label>
 
@@ -104,7 +118,7 @@
           <span class="label">Método</span>
           <select id="fMetodo">
             <option value="all">Todos</option>
-            <!-- app.js puede llenar opciones dinámicas -->
+            <!-- app.js llena opciones dinámicas -->
           </select>
         </label>
 
@@ -113,6 +127,7 @@
             ✕ Limpiar
           </button>
 
+          <!-- Placeholder: no se usa todavía -->
           <button id="btnQuickPay" class="btn" type="button" title="Registro rápido (próximamente)" disabled aria-disabled="true">
             ✅ Nuevo pago
           </button>
@@ -126,39 +141,43 @@
   </header>
 
   <!-- Main -->
-  <main class="wrap" id="main" aria-busy="false">
+  <main class="wrap" id="main" aria-busy="false" tabindex="-1">
     <div id="loader" class="loader hide" role="status" aria-live="polite">
       Cargando facturas…
     </div>
 
-    <table class="tabla" aria-describedby="mensaje">
-      <caption class="sr">
-        Listado de facturas y estado de pago del mes actual
-      </caption>
+    <!-- Contenedor para mejorar lectura/scroll en el futuro (sin romper CSS actual) -->
+    <section aria-label="Listado de facturas">
+      <table class="tabla" aria-describedby="mensaje">
+        <caption class="sr">
+          Listado de facturas y estado de pago del mes actual
+        </caption>
 
-      <thead>
-        <tr>
-          <th scope="col">Factura</th>
-          <th scope="col">Referencia</th>
-          <th scope="col">Valor</th>
-          <th scope="col">Método</th>
-          <th scope="col">Último pago</th>
-          <th scope="col">Estado</th>
-          <th scope="col">Acción</th>
-        </tr>
-      </thead>
+        <thead>
+          <tr>
+            <th scope="col">Factura</th>
+            <th scope="col">Referencia</th>
+            <th scope="col">Valor</th>
+            <th scope="col">Método</th>
+            <th scope="col">Último pago</th>
+            <th scope="col">Vencimiento</th>
+            <th scope="col">Estado</th>
+            <th scope="col">Acción</th>
+          </tr>
+        </thead>
 
-      <tbody id="tbody">
-        <!-- Se llena por JS -->
-      </tbody>
-    </table>
+        <tbody id="tbody">
+          <!-- Se llena por JS -->
+        </tbody>
+      </table>
 
-    <!-- Placeholder vacío / sin resultados -->
-    <div id="emptyState" class="empty hide" role="status" aria-live="polite">
-      <div class="empty-emoji" aria-hidden="true">🧾</div>
-      <div class="empty-title">No hay resultados</div>
-      <div class="empty-sub muted">Prueba cambiando filtros o la búsqueda.</div>
-    </div>
+      <!-- Placeholder vacío / sin resultados -->
+      <div id="emptyState" class="empty hide" role="status" aria-live="polite">
+        <div class="empty-emoji" aria-hidden="true">🧾</div>
+        <div class="empty-title">No hay resultados</div>
+        <div class="empty-sub muted">Prueba cambiando filtros o la búsqueda.</div>
+      </div>
+    </section>
   </main>
 
   <!-- Modal: Estadísticas -->
@@ -223,8 +242,10 @@
     </div>
   </div>
 
+  <!-- (Edit modal se inyecta desde app.js cuando se necesita) -->
+
   <footer class="wrap foot">
-    <small>Hecho con ❤️ por Alek & Cata · Facturas AC</small>
+    <small>Hecho con ❤️ por Alek &amp; Cata · Facturas AC</small>
   </footer>
 
   <script src="./app.js" defer></script>
