@@ -3,17 +3,17 @@
 /* =============================================================================
   FACTURAS AC · app.js — v2.0
   ---------------------------------------------------------------------------
-  Cambios respecto a versiÃ³n anterior:
-  - LÃ³gica de ciclo real por dÃ­a de corte (calcularFechaVencimiento, calcularInicioCiclo)
+  Cambios respecto a version anterior:
+  - Logica de ciclo real por dia de corte (calcularFechaVencimiento, calcularInicioCiclo)
   - 5 estados: pagado / pendiente / proximo / urgente / vencido
-  - Modal de confirmaciÃ³n de pago con fecha editable (openPayModal)
-  - CorrecciÃ³n bug crÃ­tico: editarMetodo ya funciona (action=editarMetodo ahora
+  - Modal de confirmacion de pago con fecha editable (openPayModal)
+  - Correccion bug critico: editarMetodo ya funciona (action=editarMetodo ahora
     existe en el backend)
   - Stats mejoradas: buildStatsResumen usa datos reales del Historico
-  - buildStatsMeses usa porMes del backend (historico real, no solo Ãºltimos pagos)
+  - buildStatsMeses usa porMes del backend (historico real, no solo ultimos pagos)
   - buildStatsMetodos usa porMetodo del backend
   - computeFrontStats corregido (totalPagado era suma de todos, pagados o no)
-  - prettyMonthKey formatea "YYYY-MM" â†’ "Ene 2026"
+  - prettyMonthKey formatea "YYYY-MM" -> "Ene 2026"
 ============================================================================= */
 
 /* ===========================
@@ -29,7 +29,7 @@ const STATE = {
   facturas   : [],
   filtered   : [],
   stats      : null,   // stats del backend (Historico), cacheadas
-  methods    : [],     // lista de metodos Ãºnicos (para selects)
+  methods    : [],     // lista de metodos unicos (para selects)
   lastStatsAt: 0,
 };
 
@@ -113,7 +113,7 @@ function setBusy(isBusy) {
    UTILIDADES DE FECHA
 =========================== */
 /**
- * Parsea "d/M/yyyy" (con o sin hora) â†’ Date.
+ * Parsea "d/M/yyyy" (con o sin hora) -> Date.
  */
 function parseFechaPago(fechaStr) {
   if (!fechaStr) return null;
@@ -141,7 +141,7 @@ function prettyMonthKey(key) {
 }
 
 /**
- * Convierte "YYYY-MM-DD" (valor de input[type=date]) â†’ "D/M/YYYY" para el backend.
+ * Convierte "YYYY-MM-DD" (valor de input[type=date]) -> "D/M/YYYY" para el backend.
  */
 function htmlDateToDMY(htmlDate) {
   if (!htmlDate) return null;
@@ -162,24 +162,24 @@ function todayForInput() {
 }
 
 /* ===========================
-   LÃ“GICA DE CICLO DE VENCIMIENTO
+   LOGICA DE CICLO DE VENCIMIENTO
    ------------------------------------------
-   Dado diaCorte (1â€“31) y la fecha de referencia:
+   Dado diaCorte (1-31) y la fecha de referencia:
 
    Si hoy.dia <= diaCorte:
-     - El ciclo actual vence este mes (ajustado al Ãºltimo dÃ­a valido)
-     - El ciclo anterior venciÃ³ el mes pasado
+     - El ciclo actual vence este mes (ajustado al ultimo dia valido)
+     - El ciclo anterior vencio el mes pasado
 
    Si hoy.dia > diaCorte:
      - El ciclo actual vence el mes siguiente
-     - El ciclo anterior venciÃ³ este mes
+     - El ciclo anterior vencio este mes
 
-   "Pagada en ciclo actual" = fechaPago >= (vencimientoAnterior + 1 dÃ­a)
+   "Pagada en ciclo actual" = fechaPago >= (vencimientoAnterior + 1 dia)
 =========================== */
 
 /**
- * Calcula la prÃ³xima fecha de vencimiento del ciclo actual.
- * Maneja meses cortos: diaCorte 31 en febrero â†’ Ãºltimo dÃ­a de feb.
+ * Calcula la proxima fecha de vencimiento del ciclo actual.
+ * Maneja meses cortos: diaCorte 31 en febrero -> ultimo dia de feb.
  */
 function calcularFechaVencimientoMes(diaCorte, year, monthIndex) {
   if (!diaCorte || diaCorte < 1 || diaCorte > 31) return null;
@@ -188,8 +188,8 @@ function calcularFechaVencimientoMes(diaCorte, year, monthIndex) {
 }
 
 /**
- * Calcula el inicio del ciclo actual (= dÃ­a siguiente al vencimiento anterior).
- * JS maneja overflow: new Date(2026, 1, 29) â†’ 1 de marzo. Correcto.
+ * Calcula el inicio del ciclo actual (= dia siguiente al vencimiento anterior).
+ * JS maneja overflow: new Date(2026, 1, 29) -> 1 de marzo. Correcto.
  */
 function yaEsPagadoMesActual(fechaStr, ref = new Date()) {
   const fechaPago = parseFechaPago(fechaStr);
@@ -590,7 +590,7 @@ function buildStatsResumen(backStats = null) {
   const ciclo = computeCicloStats();
   const totalFacturas = STATE.facturas.length;
 
-  // Historico: preferimos backend si estÃ¡ disponible
+  // Historico: preferimos backend si esta disponible
   const totalPagadoHistorico = backStats?.totalPagado   || 0;
   const numPagosTotal        = backStats?.numPagos       || 0;
   const promedio             = backStats?.promedioPago   || 0;
@@ -606,19 +606,19 @@ function buildStatsResumen(backStats = null) {
   const alertaCards = [];
   if (ciclo.vencidas > 0) {
     alertaCards.push(`<div class="stat" style="border-color:#dc2626;background:#fff5f5;">
-      <div class="k">⚠️ Vencidas</div>
+      <div class="k">Vencidas</div>
       <div class="v">${ciclo.vencidas}</div>
     </div>`);
   }
   if (ciclo.urgentes > 0) {
     alertaCards.push(`<div class="stat" style="border-color:#fb923c;background:#fff7ed;">
-      <div class="k">ðŸ”´ Urgentes (0-2d)</div>
+      <div class="k">Urgentes (0-2d)</div>
       <div class="v">${ciclo.urgentes}</div>
     </div>`);
   }
   if (ciclo.proximas > 0) {
     alertaCards.push(`<div class="stat" style="border-color:#fde047;background:#fffbeb;">
-      <div class="k">⏰ Proximas (3-5d)</div>
+      <div class="k">Proximas (3-5d)</div>
       <div class="v">${ciclo.proximas}</div>
     </div>`);
   }
@@ -645,14 +645,14 @@ function buildStatsResumen(backStats = null) {
     ${topHtml}
     <p class="muted" style="margin:.75rem 0 0;font-size:.8rem;">
       ${backStats
-        ? 'ðŸ“¡ Historico desde servidor · Ciclo calculado en tiempo real'
+        ? 'Historico desde servidor · Ciclo calculado en tiempo real'
         : '⚠️ Datos locales — backend no respondio o sin registros en Historico'}
     </p>
   `;
 }
 
 /**
- * Panel Metodos: usa porMetodo del Historico (backend) si estÃ¡ disponible.
+ * Panel Metodos: usa porMetodo del Historico (backend) si esta disponible.
  */
 function buildStatsMetodos(backStats = null) {
   if (!$statsMetodos) return;
@@ -662,7 +662,7 @@ function buildStatsMetodos(backStats = null) {
   if (backStats?.porMetodo?.length > 0) {
     rows = backStats.porMetodo;
   } else {
-    // Fallback: agrupaciÃ³n local por valor base (menos preciso)
+    // Fallback: agrupacion local por valor base (menos preciso)
     const map = {};
     STATE.facturas.forEach(f => {
       const m = normalizeMetodo(f.metodo) || 'Sin metodo';
@@ -695,8 +695,8 @@ function buildStatsMetodos(backStats = null) {
 }
 
 /**
- * Panel Meses: usa porMes del Historico (backend) si estÃ¡ disponible.
- * El fallback local solo muestra el ÃšLTIMO pago de cada factura — es menos preciso.
+ * Panel Meses: usa porMes del Historico (backend) si esta disponible.
+ * El fallback local solo muestra el ULTIMO pago de cada factura - es menos preciso.
  */
 function buildStatsMeses(backStats = null) {
   if (!$statsMeses) return;
@@ -706,7 +706,7 @@ function buildStatsMeses(backStats = null) {
   if (backStats?.porMes?.length > 0) {
     rows = [...backStats.porMes].sort((a, b) => b.ym.localeCompare(a.ym));
   } else {
-    // Fallback: Ãºltimo pago por factura (solo refleja el Ãºltimo mes de cada una)
+    // Fallback: ultimo pago por factura (solo refleja el ultimo mes de cada una)
     const map = {};
     STATE.facturas.forEach(f => {
       const d   = parseFechaPago(f.ultimo);
@@ -741,7 +741,7 @@ function buildStatsMeses(backStats = null) {
 }
 
 /**
- * Panel Pendientes: muestra alertas (vencidas/urgentes/prÃ³ximas) + top por valor.
+ * Panel Pendientes: muestra alertas (vencidas/urgentes/proximas) + top por valor.
  */
 function buildStatsPendientes() {
   if (!$statsPendientes) return;
@@ -763,7 +763,7 @@ function buildStatsPendientes() {
       <div class="stat"><div class="k">Sin pagar</div><div class="v">${ciclo.pendientes}</div></div>
       <div class="stat"><div class="k">Valor pendiente</div><div class="v">${fmtCOP(ciclo.valorPendiente)}</div></div>
       ${ciclo.vencidas > 0 ? `<div class="stat" style="border-color:#dc2626;background:#fff5f5;"><div class="k">⚠️ Vencidas</div><div class="v">${ciclo.vencidas}</div></div>` : ''}
-      ${ciclo.urgentes > 0 ? `<div class="stat" style="border-color:#fb923c;background:#fff7ed;"><div class="k">ðŸ”´ Urgentes (0-2d)</div><div class="v">${ciclo.urgentes}</div></div>` : ''}
+      ${ciclo.urgentes > 0 ? `<div class="stat" style="border-color:#fb923c;background:#fff7ed;"><div class="k">Urgentes (0-2d)</div><div class="v">${ciclo.urgentes}</div></div>` : ''}
     </div>`;
 
   // Lista de alertas
@@ -793,14 +793,14 @@ function buildStatsPendientes() {
             <strong>${fmtCOP(valorNum(f))}</strong>
           </div>`).join('')}
       </div>`
-    : `<p class="muted" style="margin-top:.75rem;">No hay pendientes. Milagro ðŸ˜Œ</p>`;
+    : `<p class="muted" style="margin-top:.75rem;">No hay pendientes.</p>`;
 
   $statsPendientes.innerHTML = kpis + alertasHtml + topHtml;
 }
 
 /**
  * Recalcula todos los paneles con los stats cacheados (sin llamada al backend).
- * Ãštil tras pagos/ediciones cuando el modal ya estÃ¡ abierto.
+ * Util tras pagos/ediciones cuando el modal ya esta abierto.
  */
 function refreshStatsPanels() {
   const back = STATE.stats;
@@ -869,7 +869,7 @@ function refreshStatsIfOpen() {
 }
 
 /* ===========================
-   MODAL DE CONFIRMACIÃ“N DE PAGO
+   MODAL DE CONFIRMACION DE PAGO
    Permite elegir la fecha real del pago (default: hoy).
 =========================== */
 function ensurePayModal() {
@@ -984,7 +984,7 @@ async function confirmPayModal() {
 }
 
 /* ===========================
-   MODAL DE EDICIÃ“N (Valor/Metodo en mÃ³vil)
+   MODAL DE EDICION (Valor/Metodo en movil)
 =========================== */
 function ensureEditModal() {
   let $m = $("#editModal");
@@ -1193,7 +1193,7 @@ function revertEditableCell(td) {
    EVENTOS
 =========================== */
 
-// Click en botÃ³n Registrar â†’ abre modal de pago
+// Click en boton Registrar -> abre modal de pago
 document.addEventListener("click", ev => {
   const btn = ev.target.closest("button[data-action='registrar']");
   if (!btn) return;
