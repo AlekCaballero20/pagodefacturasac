@@ -20,7 +20,7 @@
    CONFIG
 =========================== */
 const scriptURL =
-  "https://script.google.com/macros/s/AKfycbyef5w3TOHK_TdybsnlOf_8_MX8OOYjHb2HDLcxSmIumIHJ89Bza1rMSYHX33sazs2SMQ/exec";
+  "https://script.google.com/macros/s/AKfycbwITNiO3hucv8XQCggYeZgF-x9XhS1Sc8NW4-ja8GHsnJrTSWw0wViqpQsIVJXfSaqAOg/exec";
 
 /* ===========================
    STATE GLOBAL
@@ -28,6 +28,8 @@ const scriptURL =
 const STATE = {
   facturas   : [],
   filtered   : [],
+  historial  : [],
+  historialFiltered: [],
   stats      : null,   // stats del backend (Historico), cacheadas
   methods    : [],     // lista de metodos unicos (para selects)
   lastStatsAt: 0,
@@ -57,6 +59,7 @@ const $kpiPendientes  = $("#kpiPendientes");
 const $kpiValorPendiente= $("#kpiValorPendiente");
 const $kpiMetodoTop   = $("#kpiMetodoTop");
 const $btnStats       = $("#btnStats");
+const $btnHistory     = $("#btnHistory");
 const $statsModal     = $("#statsModal");
 const $statsBody      = $("#statsBody");
 const $statsMetodos   = $("#statsMetodos");
@@ -150,6 +153,15 @@ function htmlDateToDMY(htmlDate) {
   return `${Number(d)}/${Number(m)}/${y}`;
 }
 
+function dmyToHtmlDate(fechaStr) {
+  const d = parseFechaPago(fechaStr);
+  if (!d) return "";
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 /**
  * Obtiene la fecha de hoy en formato "YYYY-MM-DD" para input[type=date].
  */
@@ -215,6 +227,7 @@ function calcularFechaVencimiento(diaCorte, ref = new Date()) {
  *   estado: 'pagado' | 'pendiente' | 'proximo' | 'urgente' | 'vencido'
  */
 function calcularEstado(f) {
+  if (f && f.activa === false) return { estado: 'inactiva', diasRestantes: null, fechaVence: null };
   const diaCorte = f.diaCorte ? Number(f.diaCorte) : null;
   const hoyRef   = new Date();
   const hoy      = new Date(hoyRef.getFullYear(), hoyRef.getMonth(), hoyRef.getDate());
@@ -250,6 +263,7 @@ function calcularEstado(f) {
    HELPERS DE RENDER PARA ESTADO
 =========================== */
 const BADGE_CLASS = {
+  inactiva : 'inactiva',
   pagado   : 'ok',
   pendiente: 'pendiente',
   proximo  : 'proximo',
@@ -258,6 +272,7 @@ const BADGE_CLASS = {
 };
 
 const BADGE_LABEL = {
+  inactiva : 'Inactiva',
   pagado   : 'Pagado',
   pendiente: 'Pendiente',
   proximo  : 'Proximo',
@@ -337,13 +352,42 @@ async function fetchFacturas() {
 /**
  * Registra un pago. fechaDMY es opcional ("D/M/YYYY"); sin ella el backend usa hoy.
  */
-async function registrarPago(row, fechaDMY, metodo, valorPagado) {
+async function registrarPago(row, fechaDMY, metodo, valorPagado, comentario) {
   const params = new URLSearchParams({ action: "registrar", row: String(row) });
   if (fechaDMY) params.append("fechaPago", fechaDMY);
   if (metodo != null && String(metodo).trim() !== "") params.append("metodo", String(metodo).trim());
   if (valorPagado != null && Number.isFinite(Number(valorPagado))) params.append("valorPagado", String(valorPagado));
+  if (comentario != null && String(comentario).trim() !== "") params.append("comentario", String(comentario).trim());
   const json = await fetchJSON(`${scriptURL}?${params.toString()}`);
   if (!json.ok) throw new Error(json.error || "Error al registrar");
+  return json;
+}
+
+async function fetchHistorial() {
+  const json = await fetchJSONWithRetry(`${scriptURL}?action=historial`, 1);
+  if (!json.ok) throw new Error(json.error || "No se pudo cargar historial");
+  return Array.isArray(json.rows) ? json.rows : [];
+}
+
+async function editarPago(row, data) {
+  const params = new URLSearchParams({ action: "editarPago", row: String(row) });
+  if (data.fechaPago) params.append("fechaPago", data.fechaPago);
+  if (data.valorPagado != null) params.append("valorPagado", String(data.valorPagado));
+  if (data.metodo != null) params.append("metodo", String(data.metodo || ""));
+  if (data.comentario != null) params.append("comentario", String(data.comentario || ""));
+  const json = await fetchJSON(`${scriptURL}?${params.toString()}`);
+  if (!json.ok) throw new Error(json.error || "Error al editar pago");
+  return json;
+}
+
+async function toggleFactura(row, activa) {
+  const params = new URLSearchParams({
+    action: "toggleFactura",
+    row: String(row),
+    activa: activa ? "Si" : "No",
+  });
+  const json = await fetchJSON(`${scriptURL}?${params.toString()}`);
+  if (!json.ok) throw new Error(json.error || "Error al cambiar estado");
   return json;
 }
 
@@ -418,7 +462,7 @@ function rowHTML(f) {
   const estadoHTML= buildEstadoBadge(estado);
 
   return `
-    <tr data-row="${escapeHtml(f.row)}">
+    <tr data-row="${escapeHtml(f.row)}" class="${f.activa === false ? 'is-inactive' : ''}">
       <td data-label="Factura">${escapeHtml(f.nombre ?? '')}</td>
       <td data-label="Referencia">${escapeHtml(f.referencia ?? '')}</td>
 
@@ -443,6 +487,9 @@ function rowHTML(f) {
       <td data-label="Accion">
         <button class="btn" data-row="${escapeHtml(f.row)}" data-action="registrar">
           Registrar
+        </button>
+        <button class="btn ghost" data-row="${escapeHtml(f.row)}" data-action="toggle-factura">
+          ${f.activa === false ? 'Habilitar' : 'Inactivar'}
         </button>
       </td>
     </tr>
@@ -487,7 +534,7 @@ function applyFilters() {
     if (estado !== "all") {
       const { estado: estadoF } = calcularEstado(f);
       if (estado === "sin-pagar") {
-        if (estadoF === "pagado") return false;
+        if (estadoF === "pagado" || estadoF === "inactiva") return false;
       } else {
         if (estadoF !== estado) return false;
       }
@@ -523,7 +570,7 @@ function computeCicloStats() {
   let valorPagado = 0, valorPendiente = 0;
   const alertas = [];
 
-  STATE.facturas.forEach(f => {
+  STATE.facturas.filter(f => f.activa !== false).forEach(f => {
     const { estado, diasRestantes, fechaVence } = calcularEstado(f);
     const v = valorNum(f);
     if (estado === 'pagado') {
@@ -543,7 +590,7 @@ function computeCicloStats() {
 
 function updateKPIs() {
   const ciclo = computeCicloStats();
-  const total = STATE.facturas.length;
+  const total = STATE.facturas.filter(f => f.activa !== false).length;
 
   if ($kpiTotalMes)      $kpiTotalMes.textContent      = fmtCOP(ciclo.valorPagado);
   if ($kpiPagadas)       $kpiPagadas.textContent        = String(ciclo.pagadas);
@@ -588,7 +635,7 @@ function buildStatsResumen(backStats = null) {
   if (!$statsBody) return;
 
   const ciclo = computeCicloStats();
-  const totalFacturas = STATE.facturas.length;
+  const totalFacturas = STATE.facturas.filter(f => f.activa !== false).length;
 
   // Historico: preferimos backend si esta disponible
   const totalPagadoHistorico = backStats?.totalPagado   || 0;
@@ -902,6 +949,10 @@ function ensurePayModal() {
           <span class="label">Valor pagado</span>
           <input id="payValor" type="text" inputmode="numeric" autocomplete="off" placeholder="Ej: 50000" />
         </div>
+        <div class="field" style="margin-bottom:.5rem;">
+          <span class="label">Comentario</span>
+          <textarea id="payComentario" rows="3" placeholder="Ej: pago parcial, soporte pendiente, recargo..."></textarea>
+        </div>
         <p class="muted hint" style="margin:0;">
           Puedes ajustar fecha y valor real pagado. El valor base no se modifica.
         </p>
@@ -923,6 +974,7 @@ function openPayModal({ row, nombre, valor }) {
   $("#paySub", $m).textContent = `${nombre} · Base: ${fmtCOP(valor)}`;
   $("#payFecha", $m).value = todayForInput();
   $("#payValor", $m).value = String(Number(valor || 0));
+  $("#payComentario", $m).value = "";
 
   $m.classList.remove("hide");
   document.body.style.overflow = "hidden";
@@ -944,6 +996,7 @@ async function confirmPayModal() {
   const row          = Number($m.dataset.row);
   const $fechaInput  = $("#payFecha", $m);
   const $valorInput  = $("#payValor", $m);
+  const $comentarioInput = $("#payComentario", $m);
   const $btnConfirm  = $("#payConfirm", $m);
 
   const fechaDMY = htmlDateToDMY($fechaInput.value);
@@ -964,11 +1017,12 @@ async function confirmPayModal() {
   try {
     const f = getFacturaByRow(row);
     const metodoPago = normalizeMetodo(f?.metodo);
-    const { fecha } = await registrarPago(row, fechaDMY, metodoPago, valorPagado);
+    const { fecha } = await registrarPago(row, fechaDMY, metodoPago, valorPagado, $comentarioInput.value);
 
     // Actualizar STATE y re-renderizar
     if (f) f.ultimo = String(fecha || "");
     STATE.stats = null;
+    STATE.historial = [];
 
     showMsg(`Pago registrado: ${fmtCOP(valorPagado)} ✅`, "ok");
     updateKPIs();
@@ -1190,6 +1244,295 @@ function revertEditableCell(td) {
 }
 
 /* ===========================
+   HISTORIAL
+=========================== */
+function ensureHistoryModal() {
+  let $m = $("#historyModal");
+  if ($m) return $m;
+
+  const el = document.createElement("div");
+  el.id = "historyModal";
+  el.className = "modal hide";
+  el.setAttribute("role", "dialog");
+  el.setAttribute("aria-modal", "true");
+  el.setAttribute("aria-labelledby", "historyTitle");
+  el.innerHTML = `
+    <div class="modal-backdrop" data-close="history"></div>
+    <div class="modal-card modal-card-wide" role="document">
+      <div class="modal-head">
+        <div>
+          <h2 id="historyTitle">Historial de pagos</h2>
+          <p class="muted" id="historySub" style="margin:6px 0 0">Todos los pagos registrados.</p>
+        </div>
+        <button class="btn icon" type="button" aria-label="Cerrar" data-close="history">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="history-filters">
+          <label class="field">
+            <span class="label">Buscar</span>
+            <input id="historySearch" type="search" placeholder="Factura, referencia, comentario..." />
+          </label>
+          <label class="field">
+            <span class="label">Mes</span>
+            <select id="historyMonth"><option value="all">Todos</option></select>
+          </label>
+          <label class="field">
+            <span class="label">Metodo</span>
+            <select id="historyMethod"><option value="all">Todos</option></select>
+          </label>
+        </div>
+        <div id="historyBody" class="history-body">
+          <p class="muted">Cargando historial...</p>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button id="historyRefresh" class="btn ghost" type="button">Actualizar</button>
+        <button class="btn" type="button" data-close="history">Cerrar</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(el);
+  $("#historySearch", el)?.addEventListener("input", debounce(applyHistoryFilters, 160));
+  $("#historyMonth", el)?.addEventListener("change", applyHistoryFilters);
+  $("#historyMethod", el)?.addEventListener("change", applyHistoryFilters);
+  $("#historyRefresh", el)?.addEventListener("click", () => loadHistory(true));
+  return el;
+}
+
+function openHistoryModal() {
+  ensureHistoryModal().classList.remove("hide");
+  document.body.style.overflow = "hidden";
+}
+
+function closeHistoryModal() {
+  const $m = $("#historyModal");
+  if (!$m) return;
+  $m.classList.add("hide");
+  document.body.style.overflow = "";
+}
+
+function historyMonthKey(row) {
+  return monthKeyFromDate(parseFechaPago(row.fecha));
+}
+
+function buildHistoryFilters() {
+  const $m = ensureHistoryModal();
+  const months = new Set();
+  const methods = new Set();
+  STATE.historial.forEach(r => {
+    const mk = historyMonthKey(r);
+    if (mk) months.add(mk);
+    const metodo = normalizeMetodo(r.metodo);
+    if (metodo) methods.add(metodo);
+  });
+
+  const $month = $("#historyMonth", $m);
+  const $method = $("#historyMethod", $m);
+  const currentMonth = $month?.value || "all";
+  const currentMethod = $method?.value || "all";
+
+  if ($month) {
+    const opts = Array.from(months).sort((a, b) => b.localeCompare(a));
+    $month.innerHTML = `<option value="all">Todos</option>` +
+      opts.map(m => `<option value="${escapeHtml(m)}">${escapeHtml(prettyMonthKey(m))}</option>`).join("");
+    $month.value = opts.includes(currentMonth) ? currentMonth : "all";
+  }
+  if ($method) {
+    const opts = Array.from(methods).sort((a, b) => a.localeCompare(b, "es"));
+    $method.innerHTML = `<option value="all">Todos</option>` +
+      opts.map(m => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join("");
+    $method.value = opts.includes(currentMethod) ? currentMethod : "all";
+  }
+}
+
+function applyHistoryFilters() {
+  const $m = ensureHistoryModal();
+  const q = ($("#historySearch", $m)?.value || "").toLowerCase().trim();
+  const month = $("#historyMonth", $m)?.value || "all";
+  const method = $("#historyMethod", $m)?.value || "all";
+
+  STATE.historialFiltered = STATE.historial.filter(r => {
+    if (month !== "all" && historyMonthKey(r) !== month) return false;
+    if (method !== "all" && normalizeMetodo(r.metodo) !== method) return false;
+    if (!q) return true;
+    return [r.factura, r.referencia, r.fecha, r.metodo, r.comentario, r.valorPagado]
+      .some(v => String(v ?? "").toLowerCase().includes(q));
+  });
+  renderHistory();
+}
+
+function renderHistory() {
+  const $body = $("#historyBody", ensureHistoryModal());
+  const rows = STATE.historialFiltered.length || ($("#historySearch")?.value || $("#historyMonth")?.value !== "all" || $("#historyMethod")?.value !== "all")
+    ? STATE.historialFiltered
+    : STATE.historial;
+
+  if (!rows.length) {
+    $body.innerHTML = `<p class="muted">No hay pagos para mostrar.</p>`;
+    return;
+  }
+
+  const ordered = [...rows].sort((a, b) => {
+    const da = parseFechaPago(a.fecha)?.getTime() || 0;
+    const db = parseFechaPago(b.fecha)?.getTime() || 0;
+    return db - da || Number(b.row || 0) - Number(a.row || 0);
+  });
+
+  $body.innerHTML = `
+    <div class="history-table-wrap">
+      <table class="tabla history-table">
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Factura</th>
+            <th>Valor pagado</th>
+            <th>Metodo</th>
+            <th>Comentario</th>
+            <th>Accion</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${ordered.map(r => `
+            <tr data-history-row="${escapeHtml(r.row)}">
+              <td data-label="Fecha">${escapeHtml(r.fecha || '—')}</td>
+              <td data-label="Factura">
+                <strong>${escapeHtml(r.factura || '—')}</strong>
+                <span class="muted history-ref">${escapeHtml(r.referencia || '')}</span>
+              </td>
+              <td data-label="Valor pagado">${fmtCOP(r.valorPagado)}</td>
+              <td data-label="Metodo">${escapeHtml(normalizeMetodo(r.metodo) || '—')}</td>
+              <td data-label="Comentario">${escapeHtml(r.comentario || '—')}</td>
+              <td data-label="Accion">
+                <button class="btn ghost" type="button" data-action="edit-history" data-row="${escapeHtml(r.row)}">Editar</button>
+              </td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+async function loadHistory(force = false) {
+  const $m = ensureHistoryModal();
+  const $body = $("#historyBody", $m);
+  if ($body) $body.innerHTML = `<p class="muted">Cargando historial...</p>`;
+  try {
+    if (force || !STATE.historial.length) {
+      STATE.historial = await fetchHistorial();
+    }
+    buildHistoryFilters();
+    applyHistoryFilters();
+    const $sub = $("#historySub", $m);
+    if ($sub) $sub.textContent = `${STATE.historial.length} pagos registrados.`;
+  } catch (err) {
+    if ($body) $body.innerHTML = `<p class="muted">Error cargando historial: ${escapeHtml(err.message)}</p>`;
+  }
+}
+
+function ensureHistoryEditModal() {
+  let $m = $("#historyEditModal");
+  if ($m) return $m;
+  const el = document.createElement("div");
+  el.id = "historyEditModal";
+  el.className = "modal hide";
+  el.setAttribute("role", "dialog");
+  el.setAttribute("aria-modal", "true");
+  el.setAttribute("aria-labelledby", "historyEditTitle");
+  el.innerHTML = `
+    <div class="modal-backdrop" data-close="history-edit"></div>
+    <div class="modal-card" role="document">
+      <div class="modal-head">
+        <div>
+          <h2 id="historyEditTitle">Editar pago</h2>
+          <p class="muted" id="historyEditSub" style="margin:6px 0 0">—</p>
+        </div>
+        <button class="btn icon" type="button" aria-label="Cerrar" data-close="history-edit">✕</button>
+      </div>
+      <div class="modal-body">
+        <label class="field" style="margin-bottom:.65rem;">
+          <span class="label">Fecha</span>
+          <input id="historyEditFecha" type="date" />
+        </label>
+        <label class="field" style="margin-bottom:.65rem;">
+          <span class="label">Valor pagado</span>
+          <input id="historyEditValor" type="text" inputmode="numeric" />
+        </label>
+        <label class="field" style="margin-bottom:.65rem;">
+          <span class="label">Metodo</span>
+          <input id="historyEditMetodo" type="text" />
+        </label>
+        <label class="field">
+          <span class="label">Comentario</span>
+          <textarea id="historyEditComentario" rows="4"></textarea>
+        </label>
+      </div>
+      <div class="modal-foot">
+        <button class="btn ghost" type="button" data-close="history-edit">Cancelar</button>
+        <button id="historyEditSave" class="btn" type="button">Guardar</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(el);
+  return el;
+}
+
+function openHistoryEditModal(row) {
+  const item = STATE.historial.find(r => Number(r.row) === Number(row));
+  if (!item) return;
+  const $m = ensureHistoryEditModal();
+  $m.dataset.row = String(row);
+  $("#historyEditSub", $m).textContent = `${item.factura || '—'} · ${item.referencia || 'Sin referencia'}`;
+  $("#historyEditFecha", $m).value = dmyToHtmlDate(item.fecha);
+  $("#historyEditValor", $m).value = String(Number(item.valorPagado || 0));
+  $("#historyEditMetodo", $m).value = normalizeMetodo(item.metodo);
+  $("#historyEditComentario", $m).value = String(item.comentario || "");
+  $("#historyEditSave", $m).onclick = saveHistoryEdit;
+  $m.classList.remove("hide");
+}
+
+function closeHistoryEditModal() {
+  const $m = $("#historyEditModal");
+  if (!$m) return;
+  $m.classList.add("hide");
+}
+
+async function saveHistoryEdit() {
+  const $m = $("#historyEditModal");
+  if (!$m) return;
+  const row = Number($m.dataset.row);
+  const fechaPago = htmlDateToDMY($("#historyEditFecha", $m).value);
+  const valorPagado = parseCOP($("#historyEditValor", $m).value);
+  if (!fechaPago) { showMsg("Selecciona una fecha valida", "error"); return; }
+  if (valorPagado == null || valorPagado < 0) { showMsg("Ingresa un valor valido", "error"); return; }
+
+  try {
+    await editarPago(row, {
+      fechaPago,
+      valorPagado,
+      metodo: $("#historyEditMetodo", $m).value,
+      comentario: $("#historyEditComentario", $m).value,
+    });
+    const item = STATE.historial.find(r => Number(r.row) === row);
+    if (item) {
+      item.fecha = fechaPago;
+      item.valorPagado = valorPagado;
+      item.metodo = $("#historyEditMetodo", $m).value;
+      item.comentario = $("#historyEditComentario", $m).value;
+    }
+    STATE.stats = null;
+    showMsg("Pago actualizado", "ok");
+    closeHistoryEditModal();
+    buildHistoryFilters();
+    applyHistoryFilters();
+    if (isStatsModalOpen()) await loadStats();
+  } catch (err) {
+    showMsg("Error: " + err.message, "error");
+  }
+}
+
+/* ===========================
    EVENTOS
 =========================== */
 
@@ -1206,6 +1549,34 @@ document.addEventListener("click", ev => {
   if (!f) return;
 
   openPayModal({ row, nombre: f.nombre || "—", valor: valorNum(f) });
+});
+
+document.addEventListener("click", async ev => {
+  const btn = ev.target.closest("button[data-action='toggle-factura']");
+  if (!btn) return;
+  const row = Number(btn.dataset.row);
+  const f = getFacturaByRow(row);
+  if (!f) return;
+  const next = f.activa === false;
+  btn.disabled = true;
+  try {
+    await toggleFactura(row, next);
+    f.activa = next;
+    showMsg(next ? "Factura habilitada" : "Factura inactiva", "ok");
+    updateKPIs();
+    applyFilters();
+    refreshStatsIfOpen();
+  } catch (err) {
+    showMsg("Error: " + err.message, "error");
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+document.addEventListener("click", ev => {
+  const btn = ev.target.closest("button[data-action='edit-history']");
+  if (!btn) return;
+  openHistoryEditModal(btn.dataset.row);
 });
 
 // Click en celdas editables
@@ -1253,6 +1624,8 @@ document.addEventListener("keydown", async ev => {
     closeStatsModal();
     closeEditModal();
     closePayModal();
+    closeHistoryEditModal();
+    closeHistoryModal();
   }
 });
 
@@ -1289,12 +1662,19 @@ $btnStats?.addEventListener("click", async () => {
   await loadStats();
 });
 
+$btnHistory?.addEventListener("click", async () => {
+  openHistoryModal();
+  await loadHistory();
+});
+
 $btnCloseStats?.addEventListener("click", closeStatsModal);
 
 document.addEventListener("click", ev => {
   if (ev.target.closest("[data-close='stats']")) closeStatsModal();
   if (ev.target.closest("[data-close='edit']"))  closeEditModal();
   if (ev.target.closest("[data-close='pay']"))   closePayModal();
+  if (ev.target.closest("[data-close='history']")) closeHistoryModal();
+  if (ev.target.closest("[data-close='history-edit']")) closeHistoryEditModal();
 });
 
 // Tabs stats
@@ -1325,6 +1705,7 @@ async function boot() {
       metodo    : normalizeMetodo(f.metodo),
       ultimo    : f.ultimo     ?? "",
       diaCorte  : f.diaCorte   ?? null,
+      activa    : f.activa !== false,
       row       : f.row,
     }));
     const sinDiaVencimiento = STATE.facturas.filter(f => !(Number(f.diaCorte) >= 1 && Number(f.diaCorte) <= 31)).length;

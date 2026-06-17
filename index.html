@@ -2,7 +2,6 @@
 <html lang="es-CO">
 <head>
   <meta charset="utf-8" />
-  <!-- Mobile-first viewport (notch friendly) -->
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 
   <title>Facturas AC · Pagos</title>
@@ -11,24 +10,16 @@
   <meta name="theme-color" content="#ffffff" />
   <meta name="referrer" content="strict-origin-when-cross-origin" />
 
-  <!-- Fuente (opcional). Si no carga, cae a system-ui. -->
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 
   <link rel="stylesheet" href="./styles.css" />
-
-  <!-- Favicons (opcionales, no rompen nada si no existen)
-  <link rel="icon" href="./icons/icon-192.png" sizes="192x192" />
-  <link rel="apple-touch-icon" href="./icons/icon-192.png" />
-  -->
 </head>
 
 <body>
-  <!-- Skip link (accesibilidad, y sí, sirve en teclado) -->
   <a class="sr" href="#main">Saltar al contenido</a>
 
-  <!-- Header -->
   <header class="wrap">
     <div class="head">
       <div class="brand">
@@ -39,32 +30,31 @@
         </div>
       </div>
 
-      <!-- Acciones (en móvil se vuelve una franja con scroll horizontal por CSS) -->
       <div class="head-actions" aria-label="Acciones">
         <button id="btnRefresh" class="btn ghost" type="button" title="Actualizar lista">
-          ↻ Actualizar
+          Actualizar
         </button>
 
         <button id="btnStats" class="btn ghost" type="button" aria-haspopup="dialog" aria-controls="statsModal">
-          📊 Estadísticas
+          Estadísticas
         </button>
 
-        <!-- Placeholder: no se usa todavía -->
+        <button id="btnHistory" class="btn ghost" type="button" aria-haspopup="dialog">
+          Historial
+        </button>
+
         <button id="btnExport" class="btn ghost" type="button" title="Exportar (próximamente)" disabled aria-disabled="true">
-          ⤓ Exportar
+          Exportar
         </button>
 
-        <!-- Placeholder: no se usa todavía -->
         <button id="btnImport" class="btn ghost" type="button" title="Importar (próximamente)" disabled aria-disabled="true">
-          ⤒ Importar
+          Importar
         </button>
       </div>
     </div>
 
-    <!-- Mensajes tipo toast -->
     <div id="mensaje" aria-live="polite" class="hide"></div>
 
-    <!-- Mini dashboard / KPIs -->
     <section class="kpi" aria-label="Resumen del mes">
       <div class="kpi-grid">
         <div class="kpi-card">
@@ -93,12 +83,11 @@
       </div>
     </section>
 
-    <!-- Filtros -->
     <section class="filters" aria-label="Filtros de facturas">
       <div class="filters-row">
         <label class="field">
           <span class="label">Buscar</span>
-          <input id="q" type="search" placeholder="Factura o referencia…" autocomplete="off" inputmode="search" />
+          <input id="q" type="search" placeholder="Factura o referencia..." autocomplete="off" inputmode="search" />
         </label>
 
         <label class="field">
@@ -111,6 +100,7 @@
             <option value="urgente">Urgente</option>
             <option value="vencido">Vencido</option>
             <option value="sin-pagar">Sin pagar</option>
+            <option value="inactiva">Inactivas</option>
           </select>
         </label>
 
@@ -118,18 +108,16 @@
           <span class="label">Método</span>
           <select id="fMetodo">
             <option value="all">Todos</option>
-            <!-- app.js llena opciones dinámicas -->
           </select>
         </label>
 
         <div class="filters-actions" aria-label="Acciones de filtros">
           <button id="btnClearFilters" class="btn ghost" type="button" title="Limpiar filtros">
-            ✕ Limpiar
+            Limpiar
           </button>
 
-          <!-- Placeholder: no se usa todavía -->
           <button id="btnQuickPay" class="btn" type="button" title="Registro rápido (próximamente)" disabled aria-disabled="true">
-            ✅ Nuevo pago
+            Nuevo pago
           </button>
         </div>
       </div>
@@ -140,13 +128,11 @@
     </section>
   </header>
 
-  <!-- Main -->
   <main class="wrap" id="main" aria-busy="false" tabindex="-1">
     <div id="loader" class="loader hide" role="status" aria-live="polite">
-      Cargando facturas…
+      Cargando facturas...
     </div>
 
-    <!-- Contenedor para mejorar lectura/scroll en el futuro (sin romper CSS actual) -->
     <section aria-label="Listado de facturas">
       <table class="tabla" aria-describedby="mensaje">
         <caption class="sr">
@@ -166,21 +152,17 @@
           </tr>
         </thead>
 
-        <tbody id="tbody">
-          <!-- Se llena por JS -->
-        </tbody>
+        <tbody id="tbody"></tbody>
       </table>
 
-      <!-- Placeholder vacío / sin resultados -->
       <div id="emptyState" class="empty hide" role="status" aria-live="polite">
-        <div class="empty-emoji" aria-hidden="true">🧾</div>
+        <div class="empty-emoji" aria-hidden="true">...</div>
         <div class="empty-title">No hay resultados</div>
         <div class="empty-sub muted">Prueba cambiando filtros o la búsqueda.</div>
       </div>
     </section>
   </main>
 
-  <!-- Modal: Estadísticas -->
   <div id="statsModal" class="modal hide" role="dialog" aria-modal="true" aria-labelledby="statsTitle">
     <div class="modal-backdrop" data-close="stats"></div>
 
@@ -190,10 +172,9 @@
           <h2 id="statsTitle">Estadísticas · Histórico AC</h2>
           <p class="muted" style="margin:6px 0 0">Resumen, métodos, meses y pendientes.</p>
         </div>
-        <button id="btnCloseStats" class="btn icon" type="button" aria-label="Cerrar" data-close="stats">✕</button>
+        <button id="btnCloseStats" class="btn icon" type="button" aria-label="Cerrar" data-close="stats">x</button>
       </div>
 
-      <!-- Tabs -->
       <div class="tabs" role="tablist" aria-label="Secciones de estadísticas">
         <button class="tab is-active" type="button" role="tab" aria-selected="true" aria-controls="tabResumen" id="tResumen" data-tab="resumen">
           Resumen
@@ -210,28 +191,27 @@
       </div>
 
       <div class="modal-body">
-        <!-- Cada panel lo llena app.js -->
         <section id="tabResumen" class="tab-panel" role="tabpanel" aria-labelledby="tResumen">
           <div id="statsBody">
-            <p class="muted">Cargando estadísticas…</p>
+            <p class="muted">Cargando estadísticas...</p>
           </div>
         </section>
 
         <section id="tabMetodos" class="tab-panel hide" role="tabpanel" aria-labelledby="tMetodos">
           <div id="statsMetodos">
-            <p class="muted">Cargando métodos…</p>
+            <p class="muted">Cargando métodos...</p>
           </div>
         </section>
 
         <section id="tabMeses" class="tab-panel hide" role="tabpanel" aria-labelledby="tMeses">
           <div id="statsMeses">
-            <p class="muted">Cargando meses…</p>
+            <p class="muted">Cargando meses...</p>
           </div>
         </section>
 
         <section id="tabPendientes" class="tab-panel hide" role="tabpanel" aria-labelledby="tPendientes">
           <div id="statsPendientes">
-            <p class="muted">Cargando pendientes…</p>
+            <p class="muted">Cargando pendientes...</p>
           </div>
         </section>
       </div>
@@ -242,10 +222,8 @@
     </div>
   </div>
 
-  <!-- (Edit modal se inyecta desde app.js cuando se necesita) -->
-
   <footer class="wrap foot">
-    <small>Hecho con ❤️ por Alek &amp; Cata · Facturas AC</small>
+    <small>Hecho por Alek &amp; Cata · Facturas AC</small>
   </footer>
 
   <script src="./app.js" defer></script>
